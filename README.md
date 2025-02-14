@@ -9,6 +9,12 @@ All implemented code is in the following directory:
 ```
 CSE360/SRC
 │
+|-- ansAndQues
+|   |-- Answer.java
+|   |-- Answers.java
+|   |-- Question.java
+|   |__ Questions.java
+|
 ├── application
 │   ├── AdminHomePage.java
 │   ├── AdminSetupPage.java
@@ -28,6 +34,13 @@ CSE360/SRC
 │   ├── WelcomeLoginPage.java
 │
 └── databasePart1
+|
+|__inputValidation
+   |-- EmailEvaluator.java
+   |-- NameEvaluator.java
+   |-- PasswordEvaluator.java
+   |__ UserNameRecognizer.java
+
 ```
 
 ## Additional Files
