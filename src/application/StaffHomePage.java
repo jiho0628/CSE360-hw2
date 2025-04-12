@@ -12,9 +12,9 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import java.time.LocalDateTime;
 
 public class StaffHomePage {
-    
     private final DatabaseHelper databaseHelper;
     private final User currentUser;
     private VBox questionContainer;
@@ -22,6 +22,8 @@ public class StaffHomePage {
     private TextField questionInput;
     private Questions questions;
     private Answers answers;
+    private Reviews reviews;
+    private Review currentReview;
     TextField searchInput = new TextField();
 
 //    public StudentHomePage(DatabaseHelper databaseHelper, User user) {
@@ -33,6 +35,7 @@ public class StaffHomePage {
         this.currentUser = user;
         this.questions = new Questions(databaseHelper);
         this.answers = new Answers(databaseHelper);
+        this.reviews = new Reviews(databaseHelper);
     }
 
     public void show(Stage primaryStage) {
@@ -40,7 +43,7 @@ public class StaffHomePage {
         layout.setAlignment(Pos.TOP_CENTER);
         layout.setStyle("-fx-padding: 20; -fx-background-color: #F5F8FA;");
 
-        Label titleLabel = new Label("🐦 Staff Feed");
+        Label titleLabel = new Label("🐦 Reviewer Feed");
         titleLabel.setStyle("-fx-font-size: 22px; -fx-font-weight: bold;");
 
         Button loadQuestionsButton = new Button("🔄 Refresh");
@@ -84,13 +87,49 @@ public class StaffHomePage {
         
         HBox searchBox = new HBox(10, searchInput, filterOptions, searchButton);
         searchBox.setAlignment(Pos.CENTER);
+        
+        ScrollPane scrollPane = new ScrollPane(questionContainer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefHeight(600); 
 
-        layout.getChildren().addAll(titleLabel, searchBox, loadQuestionsButton, questionBox, questionContainer, backButton);
+        layout.getChildren().addAll(titleLabel, searchBox, loadQuestionsButton, questionBox, questionContainer, scrollPane, backButton);
         loadQuestions();
+        
+        Button messageStudentButton = new Button("Message Student");
+        messageStudentButton.setOnAction(e -> {
+            ReviewerMessagingPage messagingPage = new ReviewerMessagingPage(databaseHelper, currentUser);
+            Stage messagingStage = new Stage();
+            messagingPage.show(messagingStage);
+        });
+        layout.getChildren().add(messageStudentButton);
+        
+        //-------List-------------
+        Button viewReviewsButton = new Button("📋 My Reviews");
+        viewReviewsButton.setOnAction(e -> {
+        	System.out.print("home page");
+        	System.out.println(currentUser);
+            ReviewerReviewListPage reviewPage = new ReviewerReviewListPage(databaseHelper, currentUser);
+            Stage reviewStage = new Stage();
+            reviewPage.show(reviewStage);
+        });
+        Button monitorMessagesBtn = new Button("🕵️ View Private Messages");
+        monitorMessagesBtn.setOnAction(e -> {
+            StaffMessageMonitorPage page = new StaffMessageMonitorPage(databaseHelper, currentUser);
+            page.show(new Stage());
+        });
+
+        Button messageInstructorBtn = new Button("📩 Message Instructor");
+        messageInstructorBtn.setOnAction(e -> {
+            StaffInstructorMessagingPage page = new StaffInstructorMessagingPage(databaseHelper, currentUser);
+            page.show(new Stage());
+        });
+        layout.getChildren().addAll(viewReviewsButton, monitorMessagesBtn, messageInstructorBtn);
+
+
 
         Scene studentScene = new Scene(layout, 800, 600);
         primaryStage.setScene(studentScene);
-        primaryStage.setTitle("🐦 Staff Feed");
+        primaryStage.setTitle("🐦 Reviewer Feed");
         primaryStage.show();
     }
     private void loadQuestions() {
@@ -106,7 +145,7 @@ public class StaffHomePage {
             e.printStackTrace();
         }
     }
-
+ 
     private VBox createQuestionCard(Question question) {
         VBox card = new VBox(5);
         card.setStyle("-fx-background-color: white; -fx-padding: 10; -fx-background-radius: 10px; "
@@ -136,10 +175,19 @@ public class StaffHomePage {
         deleteButton.setOnAction(e -> deleteQuestion(question));
         deleteButton.setDisable(!currentUser.getUserName().equals(question.getAuthor()));
         
-        HBox actionBox = new HBox(10, replyButton, editButton, deleteButton);
+        Button reviewButton = new Button("📝 Review");
+        reviewButton.setStyle("-fx-background-color: #1DA1F2; -fx-text-fill: white; -fx-font-weight: bold;");
+        reviewButton.setOnAction(e -> showReviewPopup(question, "question"));
+
+        HBox actionBox = new HBox(10, replyButton, editButton, deleteButton, reviewButton);
         actionBox.setAlignment(Pos.CENTER_RIGHT);
 
-        card.getChildren().addAll(authorLabel, textLabel, actionBox, answerContainer);
+        // Add reviews section
+        VBox reviewsContainer = new VBox(5);
+        reviewsContainer.setStyle("-fx-padding: 5; -fx-background-color: #F5F8FA; -fx-background-radius: 10px;");
+        loadReviews(question.getId(), "question", reviewsContainer);
+
+        card.getChildren().addAll(authorLabel, textLabel, actionBox, answerContainer, reviewsContainer);
         return card;
     }
 
@@ -165,12 +213,22 @@ public class StaffHomePage {
                 deleteAnswerButton.setStyle("-fx-background-color: #E0245E; -fx-text-fill: white; -fx-font-weight: bold;");
                 deleteAnswerButton.setOnAction(e -> {
                     deleteAnswer(answer);
-                    loadAnswers(questionId, answerContainer); 
+                    loadAnswers(questionId, answerContainer); // 削除後に再ロード
                 });
-                deleteAnswerButton.setDisable(!currentUser.getUserName().equals(answer.getAuthor())); 
+                deleteAnswerButton.setDisable(!currentUser.getUserName().equals(answer.getAuthor())); // 自分の回答のみ削除可能
 
-                answerBox.getChildren().addAll(answerText, answeredBy, editAnswerButton, deleteAnswerButton);
+                Button reviewAnswerButton = new Button("📝 Review");
+                reviewAnswerButton.setStyle("-fx-background-color: #1DA1F2; -fx-text-fill: white; -fx-font-weight: bold;");
+                reviewAnswerButton.setOnAction(e -> showReviewPopup(answer, "answer"));
+
+                answerBox.getChildren().addAll(answerText, answeredBy, editAnswerButton, deleteAnswerButton, reviewAnswerButton);
                 answerContainer.getChildren().add(answerBox);
+
+                // Add reviews section for each answer
+                VBox answerReviewsContainer = new VBox(5);
+                answerReviewsContainer.setStyle("-fx-padding: 5; -fx-background-color: #F5F8FA; -fx-background-radius: 10px;");
+                loadReviews(answer.getId(), "answer", answerReviewsContainer);
+                answerBox.getChildren().add(answerReviewsContainer);
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -202,6 +260,7 @@ public class StaffHomePage {
         
     }
     
+
     private void addQuestion() {
         String questionText = questionInput.getText().trim();
 
@@ -276,7 +335,7 @@ public class StaffHomePage {
         editStage.show();
     }
 
-
+ 
     private void replyToQuestion(Question question, VBox answerContainer, Stage replyStage) {
         String answerText = answerInput.getText().trim();
         if (answerText.isEmpty()) {
@@ -363,5 +422,136 @@ public class StaffHomePage {
         alert.setTitle(title);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    private void loadReviews(int targetId, String targetType, VBox container) {
+        container.getChildren().clear();
+        try {
+            List<Review> reviewList = reviews.getReviewsByTarget(targetId, targetType);
+            for (Review review : reviewList) {
+                VBox reviewBox = new VBox(5);
+                reviewBox.setStyle("-fx-padding: 5; -fx-background-color: white; -fx-background-radius: 5px;");
+
+                Label reviewerLabel = new Label("👤 Reviewer: " + review.getReviewerId());
+                Label contentLabel = new Label("💬 " + review.getContent());
+                contentLabel.setWrapText(true);
+
+                Button editReviewButton = new Button("✏️ Edit");
+                editReviewButton.setStyle("-fx-background-color: #FFA500; -fx-text-fill: white; -fx-font-weight: bold;");
+                editReviewButton.setOnAction(e -> showEditReviewPopup(review));
+                editReviewButton.setDisable(!currentUser.getUserName().equals(databaseHelper.getUserNameById(review.getReviewerId())));
+
+                Button deleteReviewButton = new Button("🗑 Delete");
+                deleteReviewButton.setStyle("-fx-background-color: #E0245E; -fx-text-fill: white; -fx-font-weight: bold;");
+                deleteReviewButton.setOnAction(e -> deleteReview(review));
+                deleteReviewButton.setDisable(!currentUser.getUserName().equals(databaseHelper.getUserNameById(review.getReviewerId())));
+
+                HBox reviewActions = new HBox(10, editReviewButton, deleteReviewButton);
+                reviewActions.setAlignment(Pos.CENTER_RIGHT);
+
+                reviewBox.getChildren().addAll(reviewerLabel, contentLabel, reviewActions);
+                container.getChildren().add(reviewBox);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void showReviewPopup(Object target, String targetType) {
+        Stage reviewStage = new Stage();
+        VBox reviewLayout = new VBox(10);
+        reviewLayout.setAlignment(Pos.CENTER);
+        reviewLayout.setPadding(new Insets(20));
+
+        Label promptLabel = new Label("Write your review:");
+        TextArea reviewInput = new TextArea();
+        reviewInput.setPrefWidth(400);
+        reviewInput.setPrefHeight(200);
+
+        Button submitButton = new Button("Submit Review");
+        submitButton.setStyle("-fx-background-color: #1DA1F2; -fx-text-fill: white; -fx-font-weight: bold;");
+        submitButton.setOnAction(e -> {
+            String content = reviewInput.getText().trim();
+            if (!content.isEmpty()) {
+                try {
+                    int targetId = target instanceof Question ? ((Question) target).getId() : ((Answer) target).getId();
+                    String targetAuthor = target instanceof Question ? ((Question) target).getAuthor() : ((Answer) target).getAuthor();
+                    
+                    Review newReview = new Review(
+                        0, // id will be set by database
+                        databaseHelper.getIdByUsername(currentUser.getUserName()), // CREATED NEW DB METHOD B/C getID is not method for User
+                        targetId,
+                        targetType,
+                        targetAuthor,
+                        content,
+                        LocalDateTime.now()
+                    );
+                    
+                    reviews.addReview(newReview);
+                    reviewStage.close();
+                    loadQuestions(); // Refresh to show new review
+                } catch (SQLException ex) {
+                    showAlert("Error", "Failed to submit review.", Alert.AlertType.ERROR);
+                    ex.printStackTrace();
+                }
+            } else {
+                showAlert("Input Error", "Please enter a review.", Alert.AlertType.WARNING);
+            }
+        });
+
+        reviewLayout.getChildren().addAll(promptLabel, reviewInput, submitButton);
+
+        Scene reviewScene = new Scene(reviewLayout, 500, 300);
+        reviewStage.setScene(reviewScene);
+        reviewStage.setTitle("Write Review");
+        reviewStage.show();
+    }
+
+    private void showEditReviewPopup(Review review) {
+        Stage editStage = new Stage();
+        VBox editLayout = new VBox(10);
+        editLayout.setAlignment(Pos.CENTER);
+        editLayout.setPadding(new Insets(20));
+
+        Label promptLabel = new Label("Edit your review:");
+        TextArea editInput = new TextArea(review.getContent());
+        editInput.setPrefWidth(400);
+        editInput.setPrefHeight(200);
+
+        Button saveButton = new Button("Save Changes");
+        saveButton.setStyle("-fx-background-color: #1DA1F2; -fx-text-fill: white; -fx-font-weight: bold;");
+        saveButton.setOnAction(e -> {
+            String newContent = editInput.getText().trim();
+            if (!newContent.isEmpty()) {
+                try {
+                    reviews.updateReview(review.getId(), newContent);
+                    editStage.close();
+                    loadQuestions(); // Refresh to show updated review
+                } catch (SQLException ex) {
+                    showAlert("Error", "Failed to update review.", Alert.AlertType.ERROR);
+                    ex.printStackTrace();
+                }
+            } else {
+                showAlert("Input Error", "Review cannot be empty.", Alert.AlertType.WARNING);
+            }
+        });
+
+        editLayout.getChildren().addAll(promptLabel, editInput, saveButton);
+
+        Scene editScene = new Scene(editLayout, 500, 300);
+        editStage.setScene(editScene);
+        editStage.setTitle("Edit Review");
+        editStage.show();
+    }
+
+    private void deleteReview(Review review) {
+        try {
+            reviews.deleteReview(review.getId());
+            showAlert("Success", "Review deleted successfully!", Alert.AlertType.INFORMATION);
+            loadQuestions(); // Refresh to remove deleted review
+        } catch (SQLException e) {
+            showAlert("Error", "Failed to delete review.", Alert.AlertType.ERROR);
+            e.printStackTrace();
+        }
     }
 }

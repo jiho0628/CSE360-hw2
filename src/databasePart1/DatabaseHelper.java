@@ -165,6 +165,18 @@ public class DatabaseHelper {
 		}
 	}
 	
+	public List<String> getAllUsernames() throws SQLException {
+	    List<String> usernames = new ArrayList<>();
+	    String query = "SELECT userName FROM cse360users";
+	    try (PreparedStatement pstmt = connection.prepareStatement(query);
+	         ResultSet rs = pstmt.executeQuery()) {
+	        while (rs.next()) {
+	            usernames.add(rs.getString("userName"));
+	        }
+	    }
+	    return usernames;
+	}
+	
 	// Checks if a user already exists in the database based on their userName.
 	public boolean doesUserExist(String userName) {
 	    String query = "SELECT COUNT(*) FROM cse360users WHERE userName = ?";
@@ -1275,5 +1287,34 @@ public class DatabaseHelper {
     		}
     	}
     	return "";
+    }
+    
+    public List<String> getInstructors() throws SQLException {
+        List<String> instructors = new ArrayList<>();
+        String query = "SELECT userName FROM cse360users WHERE LOWER(role) LIKE '%instructor%'";
+        try (PreparedStatement pstmt = connection.prepareStatement(query);
+             ResultSet rs = pstmt.executeQuery()) {
+            while (rs.next()) {
+                instructors.add(rs.getString("userName"));
+            }
+        }
+        return instructors;
+    }
+    
+    public void editMessage(int id, String newContent) throws SQLException {
+        String query = "UPDATE Messages SET message = ? WHERE id = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+            pstmt.setString(1, newContent);
+            pstmt.setInt(2, id);
+            pstmt.executeUpdate();
+        }
+    }
+    
+    public void deleteMessage(int id) throws SQLException {
+        String query = "DELETE FROM Messages WHERE id = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+            pstmt.setInt(1, id);
+            pstmt.executeUpdate();
+        }
     }
 }
